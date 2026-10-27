@@ -49,9 +49,6 @@
 - No `.job` / `.stp` bitstream has been downloaded to a physical Discovery board via FlashPro.
 - The timing figure (**76.0 MHz**) is a **post-synthesis, pre-layout estimate** (`@N: MT320`: the report is an estimate of place-and-route data; final timing requires the vendor P&R report).
 
-> [!WARNING]
-> **Do not claim board bring-up or physical silicon verification.** This work must be titled strictly **"Out-of-Context Logic Synthesis & Architectural Mapping"**. Physical P&R and on-target FlashPro bring-up are subsequent flow stages.
-
 ---
 
 ## 2. Microarchitecture & Configuration
