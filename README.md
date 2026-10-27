@@ -42,7 +42,7 @@
 - Utilization counts (**3,865 LUTs, 795 SLEs, 4 MACCs, 0 LSRAMs / 6 µSRAMs**) are exact post-synthesis numbers.
 - This is the **Default build**: `PMP_REGIONS = 0` and `U_MODE = 1'b0` are printed in the elaboration log.
 
-#### ❌ NOT claimed / not yet done
+#### ❌ NOT yet done
 
 - Place & Route (P&R / layout) has **not** been run in Libero.
 - Bitstream generation (`generate_bitstream`) has **not** been run.
