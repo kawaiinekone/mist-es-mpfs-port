@@ -230,3 +230,58 @@ Synthesis log and mapping statistics are generated at:
 ```text
 mist_pf_proj/synthesis/mist_es_core.srr
 ```
+
+
+## 7. SECURE Build (`SECURE=1`) vs. Default (`SECURE=0`)
+
+The hardened build adds U-mode, 8-region PMP, and a SECDED-protected register file. It was synthesized out-of-context with the same flow as the Default build, so all figures are **post-synthesis, pre-layout** results.
+
+### 7.1 Resource Comparison
+
+| Metric | Default (`SECURE=0`) | SECURE (`SECURE=1`) | Delta | Microarchitectural Cause |
+|---|---|---|---|---|
+| **Total core LUTs** | 3,865 | **6,381** | **+65.1%** (+2,516) | 8-region PMP permission checking, M/U privilege decoders, SECDED syndrome trees |
+| • CFG4 (4-LUT) | 1,489 | 2,625 | +76.3% (+1,136) | Wide comparator multiplexing for PMP address windows |
+| • CFG3 (3-LUT) | 948 | 1,298 | +36.9% (+350) | Privilege-mode gate logic and CSR write decoders |
+| • CFG2 (2-LUT) | 769 | 439 | -42.9% (-330) | Merged into higher-order cells during replication |
+| • ARI1 (carry) | 659 | 2,000 | +203.5% (+1,341) | 1,906 arithmetic + 94 wide-mux cells for multi-region range checks (`base <= addr < top`) |
+| **Sequential cells (SLE)** | 800 | **1,207** | **+50.9%** (+407) | CSR storage growth: `pmpcfg0-1`, `pmpaddr0-7`, privilege state, status registers |
+| **DSP blocks (MACC_PA)** | 4 | 4 | 0.0% | RV32M multiplier is identical; security logic is integer/CSR only |
+| **Micro-SRAM (RAM64x12)** | 6 | **11** | +83.3% (+5 blocks) | Register file widened from 32 to 39 bits (32 data + 7 SECDED parity) |
+| **Large BRAM (LSRAM)** | 0 | 0 | 0.0% | Register file still fits in shallow distributed µSRAM |
+| **Worst negative slack** | -3.157 ns | **-10.689 ns** | -7.532 ns | PMP and ECC checking sit directly in the execution path |
+| **Estimated F<sub>max</sub>** | 76.0 MHz | **48.3 MHz** | **-36.4%** | Cycle time grows from 13.16 ns to 20.69 ns |
+
+### 7.2 Critical Path (SECURE Build)
+
+Estimated F<sub>max</sub> is **48.3 MHz** (20.689 ns cycle time against the 100 MHz constraint), with **37 logic levels**.
+
+```text
+Critical Path: 37 logic levels, 20.689 ns
+==========================================================================
+[1] Launch: dbg_mode/Q (SLE)
+      (0.218 ns cell + 0.960 ns route, fanout 62)
+[2] Regfile read address mux: u_dec.rf_ra1 -> g_rf_ecc.u_rf.regs (RAM64x12)
+      RAM64x12 access time: 0.920 ns
+[3] SECDED ECC syndrome tree: g_rf_ecc.u_rf.dec_0.s_2 -> dc_32
+      4 levels of CFG4/CFG3 error check and correction logic
+[4] ALU execution: u_alu.un1_a_m_0 -> alu_y[18]
+      Generates the effective memory address
+[5] PMP range checking: g_pmp.u_pmp_ls.match_3_N_2L1 (ARI1 carry chain)
+      8 cascaded ARI1 carry cells (bits 8 through 15)
+[6] PMP fault and trap synthesis: pmp_data_fault -> acc_store_fault -> ex_trap -> trap_set
+      CFG3/CFG4 fault qualification gates (fanout up to 158)
+[7] CSR retirement update: u_csr.minstret_lm -> minstret[33]/D (SLE)
+```
+
+**Key takeaways**
+
+1. **Why 37 logic levels:** in a single cycle the core reads the register file, decodes the SECDED syndrome, computes the effective address in the ALU, pushes it through an 8-stage PMP comparator chain (ARI1), evaluates privilege violations, and decides whether to increment `minstret`.
+2. **Logic vs. interconnect:**
+   - Silicon gate delay: **6.114 ns (29.6%)**
+   - Routing interconnect delay: **14.575 ns (70.4%)**
+   - High-fanout nets such as `trap_set` (fanout 158) and `ex_trap` (fanout 67) make Synplify's pre-route estimator budget a large interconnect delay.
+
+> [!NOTE]
+> These timing numbers are pre-layout estimates. Final timing requires Place & Route.
+
